@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Cricket Online - Boss Edition</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    
+    <style>
+        :root { --neon: #00d4ff; --bg: #0a0f12; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
+        .container { background: #162127; border: 2px solid var(--neon); border-radius: 15px; padding: 30px; max-width: 400px; margin: auto; box-shadow: 0 0 20px rgba(0,212,255,0.2); }
+        .score-board { font-size: 3rem; font-weight: bold; color: var(--neon); margin: 10px 0; }
+        .role-tag { background: #23343d; padding: 5px 15px; border-radius: 20px; font-size: 0.9rem; margin-bottom: 20px; display: inline-block; }
+        input { width: 60px; padding: 10px; border-radius: 5px; border: none; font-size: 1.2rem; text-align: center; margin-bottom: 10px; }
+        button { background: var(--neon); border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; }
+        #log { margin-top: 20px; color: #888; font-style: italic; min-height: 40px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>HAND CRICKET (1-10)</h2>
+        <div id="role" class="role-tag">Waiting for role...</div>
+        <div class="score-board" id="score">0</div>
+        <div id="status">Enter your move below</div>
+        
+        <div style="margin: 20px 0;">
+            <input type="number" id="moveInput" min="1" max="10" placeholder="1-10">
+            <button onclick="makeMove()">SEND MOVE</button>
+        </div>
+        
+        <div id="log">Waiting for another player to join...</div>
+    </div>
+
+<script>
+    // YOUR FIREBASE CONFIG
+    const firebaseConfig = {
+        apiKey: "AIzaSyBKC58hNDqYtOG4AYJWQ3atgdSHQCOmTbg",
+        authDomain: "handcricket-bd145.firebaseapp.com",
+        projectId: "handcricket-bd145",
+        storageBucket: "handcricket-bd145.firebasestorage.app",
+        messagingSenderId: "537606735022",
+        appId: "1:537606735022:web:3a11ef2ed659895e26993f"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let myRole = ""; 
+
+    // 1. Assign Role (First to join is Bat, second is Bowl)
+    db.ref('game/players').transaction((current) => {
+        if (current === null) {
+            myRole = "bat";
+            document.getElementById('role').innerText = "YOU ARE: BATTING";
+            return { p1: "active" };
+        } else if (!current.p2) {
+            myRole = "bowl";
+            document.getElementById('role').innerText = "YOU ARE: BOWLING";
+            return { ...current, p2: "active" };
+        }
+        return current; 
+    });
+
+    // 2. Sending Move
+    function makeMove() {
+        const val = parseInt(document.getElementById('moveInput').value);
+        if (isNaN(val) || val < 1 || val > 10) {
+            alert("Pick a number between 1 and 10!");
+            return;
+        }
+        db.ref('game/moves/' + myRole).set(val);
+        document.getElementById('moveInput').value = "";
+        document.getElementById('log').innerText = "Move sent! Waiting for opponent...";
+    }
+
+    // 3. Listen for Match result
+    db.ref('game/moves').on('value', (snapshot) => {
+        const moves = snapshot.val();
+        if (moves && moves.bat && moves.bowl) {
+            const bat = moves.bat;
+            const bowl = moves.bowl;
+
+            if (bat === bowl) {
+                alert(`OUT! Both chose ${bat}. Match Over!`);
+                db.ref('game').remove(); // Clear game
+                location.reload();
+            } else {
+                if (myRole === 'bat') {
+                    db.ref('game/totalScore').transaction(s => (s || 0) + bat);
+                }
+                document.getElementById('log').innerText = `Last Ball: Bat(${bat}) vs Bowl(${bowl})`;
+                db.ref('game/moves').remove(); // Clear moves for next ball
+            }
+        }
+    });
+
+    // 4. Update Scoreboard
+    db.ref('game/totalScore').on('value', (s) => {
+        document.getElementById('score').innerText = s.val() || 0;
+    });
+</script>
+</body>
+</html>
