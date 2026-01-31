@@ -3,37 +3,189 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Cricket: Championship Edition</title>
+    <title>Hand Cricket: Cyber Edition</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
-    
     <style>
-        :root { --neon: #00d4ff; --gold: #ffd700; --red: #ff4b2b; --bg: #0a0f12; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; overflow: hidden; }
-        .container { background: #162127; border: 2px solid var(--neon); border-radius: 15px; padding: 30px; max-width: 400px; margin: auto; position: relative; z-index: 2; }
-        .score-board { font-size: 4rem; font-weight: bold; color: var(--neon); text-shadow: 0 0 10px rgba(0,212,255,0.5); }
+        :root { 
+            --neon-purple: #bc13fe; 
+            --neon-blue: #00d4ff; 
+            --glass: rgba(255, 255, 255, 0.05);
+            --bg: #05080a; 
+        }
         
-        /* Overlays for Win/Loss */
-        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10; flex-direction: column; justify-content: center; align-items: center; }
-        .win-text { color: var(--gold); font-size: 3rem; text-transform: uppercase; animation: pulse 1s infinite; }
-        .lose-text { color: var(--red); font-size: 3rem; text-transform: uppercase; }
-        
-        input { width: 80px; padding: 15px; border-radius: 8px; border: none; font-size: 1.5rem; text-align: center; margin-bottom: 15px; background: #23343d; color: white; }
-        button { background: var(--neon); border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 1rem; }
-        .reset-btn { background: #333; color: #888; margin-top: 20px; font-size: 0.7rem; width: auto; padding: 5px 10px; }
+        body { 
+            background: var(--bg); 
+            background-image: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #05080a 100%);
+            color: white; 
+            font-family: 'Orbitron', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px;
+        }
 
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .container { 
+            background: var(--glass); 
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 20px; 
+            padding: 30px; width: 100%; max-width: 420px; 
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 255, 0.1);
+        }
+
+        h2 { text-transform: uppercase; letter-spacing: 4px; color: var(--neon-blue); margin-top: 0; }
+        
+        .score-board { 
+            font-size: 5rem; font-weight: 900; color: white; 
+            text-shadow: 0 0 20px var(--neon-blue); margin: 10px 0;
+        }
+
+        .target-pill {
+            background: linear-gradient(90deg, transparent, var(--neon-purple), transparent);
+            padding: 5px; margin-bottom: 20px; font-size: 0.8rem; display: none;
+        }
+
+        input { 
+            background: rgba(0,0,0,0.5); border: 1px solid var(--neon-purple); 
+            color: white; padding: 15px; width: 80px; font-size: 2rem; border-radius: 12px; text-align: center;
+            outline: none; box-shadow: inset 0 0 10px rgba(188, 19, 254, 0.2);
+        }
+
+        button { 
+            background: linear-gradient(45deg, var(--neon-blue), var(--neon-purple));
+            border: none; padding: 18px; border-radius: 12px; color: white; font-weight: bold;
+            text-transform: uppercase; cursor: pointer; width: 100%; margin-top: 15px;
+            transition: 0.3s; box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+        }
+
+        button:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(188, 19, 254, 0.6); }
+
+        /* Ball Tracker Styling */
+        .ball-tracker { display: flex; justify-content: center; gap: 8px; margin-top: 25px; }
+        .ball { 
+            width: 35px; height: 35px; border-radius: 50%; background: #222; 
+            display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold;
+            border: 1px solid #444;
+        }
+        .ball.run { background: var(--neon-blue); border-color: white; color: black; }
+        .ball.wicket { background: #ff4b2b; border-color: white; box-shadow: 0 0 10px #ff4b2b; }
+
+        #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; flex-direction: column; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <div id="overlay-content"></div>
-        <button onclick="resetStadium()" style="margin-top: 20px; width: 200px;">PLAY AGAIN</button>
+<div id="overlay">
+    <h1 id="result-msg" style="font-size: 3rem; text-shadow: 0 0 20px white;"></h1>
+    <button onclick="resetStadium()" style="width: 250px;">REMATCH</button>
+</div>
+
+<div class="container">
+    <h2 id="innings-text">Phase I</h2>
+    <div id="role" style="font-size: 0.7rem; opacity: 0.7; margin-bottom: 15px;">INITIALIZING...</div>
+    
+    <div id="target-display" class="target-pill">TARGET: <span id="target-val">0</span></div>
+    
+    <div class="score-board" id="score">0</div>
+    
+    <div style="margin: 20px 0;">
+        <input type="number" id="moveInput" min="1" max="10" placeholder="?">
+        <button onclick="makeMove()">Execute Strike</button>
     </div>
 
-    <div class="container">
-        <h2 id="header">HAND CRICKET</h2>
+    <div style="font-size: 0.6rem; opacity: 0.5; text-transform: uppercase; margin-top: 20px;">Live Ball Tracker</div>
+    <div class="ball-tracker" id="history-stack">
+        </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBKC58hNDqYtOG4AYJWQ3atgdSHQCOmTbg",
+        authDomain: "handcricket-bd145.firebaseapp.com",
+        databaseURL: "https://handcricket-bd145-default-rtdb.asia-southeast1.firebasedatabase.app/",
+        projectId: "handcricket-bd145",
+        storageBucket: "handcricket-bd145.firebasestorage.app",
+        messagingSenderId: "537606735022",
+        appId: "1:537606735022:web:3a11ef2ed659895e26993f"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let myRole = ""; 
+    let initialRole = "";
+
+    db.ref('game/players').transaction((current) => {
+        if (current === null) { myRole = "bat"; initialRole = "bat"; return { p1: "active" }; }
+        else if (!current.p2) { myRole = "bowl"; initialRole = "bowl"; return { ...current, p2: "active" }; }
+        return current; 
+    });
+
+    function makeMove() {
+        const val = parseInt(document.getElementById('moveInput').value);
+        if (isNaN(val) || val < 1 || val > 10) return alert("Select 1-10");
+        db.ref('game/moves/' + myRole).set(val);
+        document.getElementById('moveInput').value = "";
+    }
+
+    db.ref('game').on('value', (snap) => {
+        const data = snap.val() || {};
+        const moves = data.moves || {};
+        const isSecondInnings = data.isSecondInnings || false;
+        const target = data.target || 0;
+        const score = data.totalScore || 0;
+        const history = data.history || {};
+
+        document.getElementById('score').innerText = score;
+        myRole = isSecondInnings ? (initialRole === 'bat' ? 'bowl' : 'bat') : initialRole;
+        document.getElementById('role').innerText = `SYSTEM STATUS: ${myRole.toUpperCase()}`;
+        
+        if (isSecondInnings) {
+            document.getElementById('innings-text').innerText = "Phase II";
+            document.getElementById('target-display').style.display = "block";
+            document.getElementById('target-val').innerText = target;
+        }
+
+        // Update Ball Tracker UI
+        const stack = document.getElementById('history-stack');
+        stack.innerHTML = "";
+        const historyArray = Object.values(history).slice(-6); // Show last 6 balls
+        historyArray.forEach(item => {
+            const ball = document.createElement('div');
+            ball.className = `ball ${item.type === 'W' ? 'wicket' : 'run'}`;
+            ball.innerText = item.bat;
+            stack.appendChild(ball);
+        });
+
+        if (moves.bat && moves.bowl) {
+            const bat = moves.bat; const bowl = moves.bowl;
+            if (bat === bowl) {
+                db.ref('game/history').push({ bat, bowl, type: 'W' });
+                if (!isSecondInnings) {
+                    db.ref('game').update({ isSecondInnings: true, target: score + 1, totalScore: 0, moves: null, history: null });
+                } else {
+                    endGame(score >= target ? "VICTORY" : "DEFEAT");
+                }
+            } else {
+                db.ref('game/history').push({ bat, bowl, type: 'R' });
+                if (myRole === 'bat') {
+                    const newScore = score + bat;
+                    db.ref('game/totalScore').set(newScore);
+                    if (isSecondInnings && newScore >= target) endGame("CHASE COMPLETE");
+                }
+                db.ref('game/moves').set(null);
+            }
+        }
+    });
+
+    function endGame(msg) {
+        document.getElementById('overlay').style.display = 'flex';
+        document.getElementById('result-msg').innerText = msg;
+    }
+
+    function resetStadium() {
+        db.ref('game').remove().then(() => location.reload());
+    }
+</script>
+</body>
+</html>
         <div id="role" style="color: #888; margin-bottom: 10px;">Assigning Role...</div>
         <div class="score-board" id="score">0</div>
         <div id="log" style="margin-bottom: 20px; font-style: italic;">Waiting for game to start...</div>
