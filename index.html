@@ -3,37 +3,170 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hand Cricket: Cyber Edition</title>
+    <title>Hand Cricket Pro</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
     <style>
-        :root { 
-            --neon-purple: #bc13fe; 
-            --neon-blue: #00d4ff; 
-            --glass: rgba(255, 255, 255, 0.05);
-            --bg: #05080a; 
-        }
-        
         body { 
-            background: var(--bg); 
-            background-image: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #05080a 100%);
+            background: #1a1a1a; 
             color: white; 
-            font-family: 'Orbitron', sans-serif; 
-            display: flex; flex-direction: column; align-items: center; min-height: 100vh; margin: 0; padding: 20px;
+            font-family: 'Helvetica Neue', Arial, sans-serif; 
+            display: flex; justify-content: center; align-items: center; 
+            min-height: 100vh; margin: 0; 
         }
-
-        .container { 
-            background: var(--glass); 
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(0, 212, 255, 0.3);
-            border-radius: 20px; 
-            padding: 30px; width: 100%; max-width: 420px; 
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 255, 0.1);
+        .stadium-card { 
+            background: #2d2d2d; 
+            width: 90%; max-width: 400px; 
+            border-radius: 20px; overflow: hidden; 
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            border-bottom: 5px solid #4CAF50;
         }
-
-        h2 { text-transform: uppercase; letter-spacing: 4px; color: var(--neon-blue); margin-top: 0; }
+        .header { background: #4CAF50; padding: 20px; text-align: center; }
+        .header h2 { margin: 0; letter-spacing: 1px; font-size: 1.2rem; }
         
-        .score-board { 
+        .score-section { padding: 40px 20px; text-align: center; }
+        .score-val { font-size: 5rem; font-weight: bold; margin: 0; line-height: 1; }
+        .target-text { color: #FFD700; font-weight: bold; margin-top: 10px; display: none; }
+
+        .play-area { padding: 20px; background: #333; text-align: center; }
+        input { 
+            width: 70px; padding: 15px; border-radius: 10px; border: 2px solid #4CAF50;
+            background: #1a1a1a; color: white; font-size: 1.5rem; text-align: center;
+        }
+        button { 
+            display: block; width: 100%; margin-top: 15px; padding: 15px;
+            background: #4CAF50; color: white; border: none; border-radius: 10px;
+            font-weight: bold; cursor: pointer; font-size: 1rem;
+        }
+        
+        .tracker { display: flex; justify-content: center; gap: 10px; padding: 20px; background: #252525; }
+        .ball { 
+            width: 30px; height: 30px; border-radius: 50%; background: #444; 
+            display: flex; align-items: center; justify-content: center; font-size: 0.8rem;
+        }
+        .ball.w { background: #f44336; }
+        .ball.r { background: #2196F3; }
+
+        #overlay { 
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); 
+            z-index: 100; flex-direction: column; align-items: center; justify-content: center; 
+        }
+    </style>
+</head>
+<body>
+
+<div id="overlay">
+    <h1 id="res-msg"></h1>
+    <button onclick="resetStadium()" style="width: 200px;">PLAY AGAIN</button>
+</div>
+
+<div class="stadium-card">
+    <div class="header">
+        <h2 id="innings">1ST INNINGS</h2>
+        <small id="role">CONNECTING...</small>
+    </div>
+
+    <div class="score-section">
+        <p id="target-ui" class="target-text">TARGET: <span id="target-val">0</span></p>
+        <h1 class="score-val" id="score">0</h1>
+        <p id="log" style="color: #aaa; margin-top: 15px;">Waiting for move...</p>
+    </div>
+
+    <div class="play-area">
+        <input type="number" id="moveInput" min="1" max="10" placeholder="1-10">
+        <button onclick="makeMove()">HIT BALL</button>
+    </div>
+
+    <div class="tracker" id="tracker"></div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBKC58hNDqYtOG4AYJWQ3atgdSHQCOmTbg",
+        authDomain: "handcricket-bd145.firebaseapp.com",
+        databaseURL: "https://handcricket-bd145-default-rtdb.asia-southeast1.firebasedatabase.app/",
+        projectId: "handcricket-bd145",
+        storageBucket: "handcricket-bd145.firebasestorage.app",
+        messagingSenderId: "537606735022",
+        appId: "1:537606735022:web:3a11ef2ed659895e26993f"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let myRole = ""; let initRole = "";
+
+    db.ref('game/players').transaction((c) => {
+        if (c === null) { myRole = "bat"; initRole = "bat"; return { p1: "active" }; }
+        else if (!c.p2) { myRole = "bowl"; initRole = "bowl"; return { ...c, p2: "active" }; }
+        return c; 
+    });
+
+    function makeMove() {
+        const val = parseInt(document.getElementById('moveInput').value);
+        if (isNaN(val) || val < 1 || val > 10) return alert("Pick 1-10");
+        db.ref('game/moves/' + myRole).set(val);
+        document.getElementById('moveInput').value = "";
+    }
+
+    db.ref('game').on('value', (snap) => {
+        const data = snap.val() || {};
+        const moves = data.moves || {};
+        const is2nd = data.is2nd || false;
+        const target = data.target || 0;
+        const score = data.score || 0;
+        const history = data.history || {};
+
+        document.getElementById('score').innerText = score;
+        myRole = is2nd ? (initRole === 'bat' ? 'bowl' : 'bat') : initRole;
+        document.getElementById('role').innerText = `YOU ARE ${myRole.toUpperCase()}`;
+        
+        if (is2nd) {
+            document.getElementById('innings').innerText = "2ND INNINGS";
+            document.getElementById('target-ui').style.display = "block";
+            document.getElementById('target-val').innerText = target;
+        }
+
+        const tracker = document.getElementById('tracker');
+        tracker.innerHTML = "";
+        Object.values(history).slice(-6).forEach(h => {
+            const b = document.createElement('div');
+            b.className = `ball ${h.t === 'W' ? 'w' : 'r'}`;
+            b.innerText = h.v;
+            tracker.appendChild(b);
+        });
+
+        if (moves.bat && moves.bowl) {
+            const b = moves.bat; const bo = moves.bowl;
+            if (b === bo) {
+                db.ref('game/history').push({ v: b, t: 'W' });
+                if (!is2nd) {
+                    db.ref('game').update({ is2nd: true, target: score + 1, score: 0, moves: null, history: null });
+                } else {
+                    end(score >= target ? "BATSMAN WINS" : "BOWLER WINS");
+                }
+            } else {
+                db.ref('game/history').push({ v: b, t: 'R' });
+                if (myRole === 'bat') {
+                    const ns = score + b;
+                    db.ref('game/score').set(ns);
+                    if (is2nd && ns >= target) end("BATSMAN CHASED IT!");
+                }
+                db.ref('game/moves').set(null);
+            }
+        }
+    });
+
+    function end(m) {
+        document.getElementById('overlay').style.display = 'flex';
+        document.getElementById('res-msg').innerText = m;
+    }
+
+    function resetStadium() {
+        db.ref('game').remove().then(() => location.reload());
+    }
+</script>
+</body>
+</html>
             font-size: 5rem; font-weight: 900; color: white; 
             text-shadow: 0 0 20px var(--neon-blue); margin: 10px 0;
         }
