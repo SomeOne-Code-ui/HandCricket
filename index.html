@@ -14,7 +14,8 @@
         .score-board { font-size: 3rem; font-weight: bold; color: var(--neon); margin: 10px 0; }
         .role-tag { background: #23343d; padding: 5px 15px; border-radius: 20px; font-size: 0.9rem; margin-bottom: 20px; display: inline-block; }
         input { width: 60px; padding: 10px; border-radius: 5px; border: none; font-size: 1.2rem; text-align: center; margin-bottom: 10px; }
-        button { background: var(--neon); border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; }
+        button { background: var(--neon); border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
+        .reset-btn { background: #ff4b2b; color: white; margin-top: 20px; font-size: 0.8rem; padding: 5px; }
         #log { margin-top: 20px; color: #888; font-style: italic; min-height: 40px; }
     </style>
 </head>
@@ -31,9 +32,83 @@
             <button onclick="makeMove()">SEND MOVE</button>
         </div>
         
-        <div id="log">Waiting for another player to join...</div>
+        <div id="log">Waiting for another player...</div>
+        
+        <button class="reset-btn" onclick="resetStadium()">RESET STADIUM</button>
     </div>
 
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyBKC58hNDqYtOG4AYJWQ3atgdSHQCOmTbg",
+        authDomain: "handcricket-bd145.firebaseapp.com",
+        // The missing link to the Asia server!
+        databaseURL: "https://handcricket-bd145-default-rtdb.asia-southeast1.firebasedatabase.app/",
+        projectId: "handcricket-bd145",
+        storageBucket: "handcricket-bd145.firebasestorage.app",
+        messagingSenderId: "537606735022",
+        appId: "1:537606735022:web:3a11ef2ed659895e26993f"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    let myRole = ""; 
+
+    // Assign Role
+    db.ref('game/players').transaction((current) => {
+        if (current === null) {
+            myRole = "bat";
+            document.getElementById('role').innerText = "YOU ARE: BATTING";
+            return { p1: "active" };
+        } else if (!current.p2) {
+            myRole = "bowl";
+            document.getElementById('role').innerText = "YOU ARE: BOWLING";
+            return { ...current, p2: "active" };
+        }
+        return current; 
+    });
+
+    function makeMove() {
+        const val = parseInt(document.getElementById('moveInput').value);
+        if (isNaN(val) || val < 1 || val > 10) {
+            alert("Pick 1-10!");
+            return;
+        }
+        db.ref('game/moves/' + myRole).set(val);
+        document.getElementById('moveInput').value = "";
+        document.getElementById('log').innerText = "Waiting for opponent...";
+    }
+
+    db.ref('game/moves').on('value', (snapshot) => {
+        const moves = snapshot.val();
+        if (moves && moves.bat && moves.bowl) {
+            const bat = moves.bat;
+            const bowl = moves.bowl;
+
+            if (bat === bowl) {
+                alert(`OUT! Final Score: ${document.getElementById('score').innerText}`);
+                resetStadium();
+            } else {
+                if (myRole === 'bat') {
+                    db.ref('game/totalScore').transaction(s => (s || 0) + bat);
+                }
+                document.getElementById('log').innerText = `Last Ball: Bat(${bat}) vs Bowl(${bowl})`;
+                db.ref('game/moves').set(null); 
+            }
+        }
+    });
+
+    db.ref('game/totalScore').on('value', (s) => {
+        document.getElementById('score').innerText = s.val() || 0;
+    });
+
+    function resetStadium() {
+        db.ref('game').remove().then(() => {
+            location.reload();
+        });
+    }
+</script>
+</body>
+</html>
 <script>
     // YOUR FIREBASE CONFIG
     const firebaseConfig = {
